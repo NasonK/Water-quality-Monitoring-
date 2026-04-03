@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Quality Live Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #eef2f7; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; }
+        .status { color: #27ae60; font-weight: bold; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Water Quality Live Monitor</h1>
+        <p>Project by: <strong>NasonK</strong></p>
+        <div class="status" id="connection-status">Connecting to Firebase...</div>
+        
+        <canvas id="waterChart"></canvas>
+    </div>
+
+    <script>
+        // 2. YOUR UNIQUE FIREBASE CONFIG (Already updated with your keys)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDs8pzY8IfROTNQDThaI44jYelcL2dlGnM",
+            authDomain: "water-quality-monitoring-96e08.firebaseapp.com",
+            databaseURL: "https://water-quality-monitoring-96e08-default-rtdb.europe-west1.firebasedatabase.app/",
+            projectId: "water-quality-monitoring-96e08",
+            storageBucket: "water-quality-monitoring-96e08.firebasestorage.app",
+            messagingSenderId: "1096818883850",
+            appId: "1:1096818883850:web:cab2dce05b5feeb4cc8ef3",
+            measurementId: "G-Z7J839D9VJ"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        document.getElementById('connection-status').innerText = "Connected: Waiting for Sensor Data...";
+
+        // 3. SETUP THE CHART
+        const ctx = document.getElementById('waterChart').getContext('2d');
+        const waterChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], 
+                datasets: [{
+                    label: 'Turbidity (NTU)',
+                    data: [], 
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'NTU Level' } }
+                }
+            }
+        });
+
+        // 4. LISTEN FOR DATA (We will expect the ESP32 to push to a node called "sensor_readings")
+        database.ref('sensor_readings').limitToLast(15).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const labels = [];
+                const values = [];
+                
+                Object.keys(data).forEach(key => {
+                    // This assumes your ESP32 sends a timestamp and a turbidity value
+                    labels.push(data[key].time || new Date().toLocaleTimeString());
+                    values.push(data[key].turbidity);
+                });
+
+                waterChart.data.labels = labels;
+                waterChart.data.datasets[0].data = values;
+                waterChart.update();
+                document.getElementById('connection-status').innerText = "Receiving Live Data!";
+            }
+        });
+    </script>
+</body>
+</html>
