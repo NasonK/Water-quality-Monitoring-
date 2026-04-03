@@ -3,29 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Water Quality Live Monitor</title>
+    <title>Multi-Sensor Water Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #eef2f7; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; }
-        .status { color: #27ae60; font-weight: bold; margin-bottom: 20px; }
+        body { font-family: sans-serif; text-align: center; background-color: #eef2f7; padding: 10px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        canvas { max-width: 100%; height: 250px !important; }
+        h2 { color: #2c3e50; font-size: 1.2rem; }
     </style>
 </head>
 <body>
 
+    <h1>Water Quality Dashboard</h1>
+
     <div class="container">
-        <h1>Water Quality Live Monitor</h1>
-        <p>Project by: <strong>NasonK</strong></p>
-        <div class="status" id="connection-status">Connecting to Firebase...</div>
-        
-        <canvas id="waterChart"></canvas>
+        <h2>Turbidity Level (NTU)</h2>
+        <canvas id="turbidityChart"></canvas>
+    </div>
+
+    <div class="container">
+        <h2>Total Dissolved Solids (TDS)</h2>
+        <canvas id="tdsChart"></canvas>
+    </div>
+
+    <div class="container">
+        <h2>Temperature (°C)</h2>
+        <canvas id="tempChart"></canvas>
     </div>
 
     <script>
-        // 2. YOUR UNIQUE FIREBASE CONFIG (Already updated with your keys)
         const firebaseConfig = {
             apiKey: "AIzaSyDs8pzY8IfROTNQDThaI44jYelcL2dlGnM",
             authDomain: "water-quality-monitoring-96e08.firebaseapp.com",
@@ -33,58 +41,44 @@
             projectId: "water-quality-monitoring-96e08",
             storageBucket: "water-quality-monitoring-96e08.firebasestorage.app",
             messagingSenderId: "1096818883850",
-            appId: "1:1096818883850:web:cab2dce05b5feeb4cc8ef3",
-            measurementId: "G-Z7J839D9VJ"
+            appId: "1:1096818883850:web:cab2dce05b5feeb4cc8ef3"
         };
 
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
-        document.getElementById('connection-status').innerText = "Connected: Waiting for Sensor Data...";
 
-        // 3. SETUP THE CHART
-        const ctx = document.getElementById('waterChart').getContext('2d');
-        const waterChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [], 
-                datasets: [{
-                    label: 'Turbidity (NTU)',
-                    data: [], 
-                    borderColor: '#3498db',
-                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'NTU Level' } }
-                }
-            }
-        });
+        // Helper function to create charts
+        function createChart(canvasId, label, color) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: label, data: [], borderColor: color, fill: false, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
 
-        // 4. LISTEN FOR DATA (We will expect the ESP32 to push to a node called "sensor_readings")
-        database.ref('sensor_readings').limitToLast(15).on('value', (snapshot) => {
+        const turbidityChart = createChart('turbidityChart', 'Turbidity', '#3498db');
+        const tdsChart = createChart('tdsChart', 'TDS (ppm)', '#e67e22');
+        const tempChart = createChart('tempChart', 'Temp (°C)', '#e74c3c');
+
+        // Listen for data
+        database.ref('sensor_readings').limitToLast(10).on('value', (snapshot) => {
             const data = snapshot.val();
             if (data) {
-                const labels = [];
-                const values = [];
-                
+                const labels = [], turbVals = [], tdsVals = [], tempVals = [];
                 Object.keys(data).forEach(key => {
-                    // This assumes your ESP32 sends a timestamp and a turbidity value
                     labels.push(data[key].time || new Date().toLocaleTimeString());
-                    values.push(data[key].turbidity);
+                    turbVals.push(data[key].turbidity);
+                    tdsVals.push(data[key].tds);
+                    tempVals.push(data[key].temperature);
                 });
 
-                waterChart.data.labels = labels;
-                waterChart.data.datasets[0].data = values;
-                waterChart.update();
-                document.getElementById('connection-status').innerText = "Receiving Live Data!";
+                turbidityChart.data.labels = labels; turbidityChart.data.datasets[0].data = turbVals; turbidityChart.update();
+                tdsChart.data.labels = labels; tdsChart.data.datasets[0].data = tdsVals; tdsChart.update();
+                tempChart.data.labels = labels; tempChart.data.datasets[0].data = tempVals; tempChart.update();
             }
         });
     </script>
 </body>
-</html>
+    </html>
+    
