@@ -5,35 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi-Sensor Water Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    
     <style>
         body { font-family: sans-serif; text-align: center; background-color: #eef2f7; padding: 10px; }
         .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
         canvas { max-width: 100%; height: 250px !important; }
         h2 { color: #2c3e50; font-size: 1.2rem; }
+        
+        /* Auth Styles */
+        .auth-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 50px auto; }
+        input { width: 90%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; }
+        button { width: 95%; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-login { background: #3498db; color: white; }
+        .btn-signup { background: #95a5a6; color: white; }
+        .btn-logout { background: #555; color: white; width: auto; padding: 8px 15px; }
+        .btn-admin { background: #e74c3c; color: white; margin-bottom: 20px; }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; max-width: 800px; margin: 0 auto 20px; background: white; padding: 10px 20px; border-radius: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>Water Quality Dashboard</h1>
-
-    <div class="container">
-        <h2>Turbidity Level (NTU)</h2>
-        <canvas id="turbidityChart"></canvas>
+    <div id="auth-section">
+        <div class="auth-card">
+            <h1>Water Monitor Access</h1>
+            <input type="email" id="emailInput" placeholder="Email">
+            <input type="password" id="passInput" placeholder="Password">
+            <input type="password" id="confirmPassInput" placeholder="Confirm Password (for signup)">
+            <p style="font-size: 0.75rem; color: #7f8c8d;">Password requirements: >8 chars, must include a number and a special character (!@#$%^&*)</p>
+            <button class="btn-login" onclick="handleLogin()">Login</button>
+            <button class="btn-signup" onclick="handleSignUp()">Create Account</button>
+        </div>
     </div>
 
-    <div class="container">
-        <h2>Total Dissolved Solids (TDS)</h2>
-        <canvas id="tdsChart"></canvas>
+    <div id="dashboard-section" style="display: none;">
+        <div class="header-bar">
+            <span>User: <b id="userEmailTag"></b></span>
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+
+        <div id="admin-panel" style="display: none;">
+            <button class="btn-admin" onclick="clearAllData()">⚠️ ADMIN: CLEAR ALL DATABASE RECORDS</button>
+        </div>
+
+        <h1>Water Quality Dashboard</h1>
+
+        <div class="container">
+            <h2>Turbidity Level (NTU)</h2>
+            <canvas id="turbidityChart"></canvas>
+        </div>
+
+        <div class="container">
+            <h2>Total Dissolved Solids (TDS)</h2>
+            <canvas id="tdsChart"></canvas>
+        </div>
+
+        <div class="container">
+            <h2>Temperature (°C)</h2>
+            <canvas id="tempChart"></canvas>
+        </div>
     </div>
 
-    <div class="container">
-        <h2>Temperature (°C)</h2>
-        <canvas id="tempChart"></canvas>
-    </div>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    <script>
         const firebaseConfig = {
             apiKey: "AIzaSyDs8pzY8IfROTNQDThaI44jYelcL2dlGnM",
             authDomain: "water-quality-monitoring-96e08.firebaseapp.com",
@@ -44,10 +80,14 @@
             appId: "1:1096818883850:web:cab2dce05b5feeb4cc8ef3"
         };
 
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth();
+        const db = getDatabase();
+        const ADMIN_EMAIL = "nasonkiloo4@gmail.com";
 
-        // Helper function to create charts
+        // Chart instances
+        let charts = {};
+
         function createChart(canvasId, label, color) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             return new Chart(ctx, {
@@ -57,28 +97,74 @@
             });
         }
 
-        const turbidityChart = createChart('turbidityChart', 'Turbidity', '#3498db');
-        const tdsChart = createChart('tdsChart', 'TDS (ppm)', '#e67e22');
-        const tempChart = createChart('tempChart', 'Temp (°C)', '#e74c3c');
+        const setupDashboard = () => {
+            charts.turbidity = createChart('turbidityChart', 'Turbidity', '#3498db');
+            charts.tds = createChart('tdsChart', 'TDS (ppm)', '#e67e22');
+            charts.temp = createChart('tempChart', 'Temp (°C)', '#e74c3c');
 
-        // Listen for data
-        database.ref('sensor_readings').limitToLast(10).on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                const labels = [], turbVals = [], tdsVals = [], tempVals = [];
-                Object.keys(data).forEach(key => {
-                    labels.push(data[key].time || new Date().toLocaleTimeString());
-                    turbVals.push(data[key].turbidity);
-                    tdsVals.push(data[key].tds);
-                    tempVals.push(data[key].temperature);
-                });
+            onValue(ref(db, 'sensor_readings'), (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    const labels = [], turbVals = [], tdsVals = [], tempVals = [];
+                    Object.keys(data).sort().slice(-15).forEach(key => {
+                        labels.push(data[key].time || "N/A");
+                        turbVals.push(data[key].turbidity);
+                        tdsVals.push(data[key].tds);
+                        tempVals.push(data[key].temperature);
+                    });
 
-                turbidityChart.data.labels = labels; turbidityChart.data.datasets[0].data = turbVals; turbidityChart.update();
-                tdsChart.data.labels = labels; tdsChart.data.datasets[0].data = tdsVals; tdsChart.update();
-                tempChart.data.labels = labels; tempChart.data.datasets[0].data = tempVals; tempChart.update();
+                    charts.turbidity.data.labels = labels; charts.turbidity.data.datasets[0].data = turbVals; charts.turbidity.update();
+                    charts.tds.data.labels = labels; charts.tds.data.datasets[0].data = tdsVals; charts.tds.update();
+                    charts.temp.data.labels = labels; charts.temp.data.datasets[0].data = tempVals; charts.temp.update();
+                }
+            });
+        };
+
+        // Authentication Handlers
+        window.handleSignUp = async () => {
+            const email = document.getElementById('emailInput').value;
+            const pass = document.getElementById('passInput').value;
+            const confirm = document.getElementById('confirmPassInput').value;
+            
+            const passRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{9,}$/;
+
+            if (pass !== confirm) return alert("Passwords do not match!");
+            if (!passRegex.test(pass)) return alert("Password must be >8 chars with a number and special char.");
+
+            try {
+                await createUserWithEmailAndPassword(auth, email, pass);
+                alert("Success! Welcome aboard.");
+            } catch (e) { alert(e.message); }
+        };
+
+        window.handleLogin = () => {
+            const email = document.getElementById('emailInput').value;
+            const pass = document.getElementById('passInput').value;
+            signInWithEmailAndPassword(auth, email, pass).catch(e => alert(e.message));
+        };
+
+        window.handleLogout = () => signOut(auth).then(() => location.reload());
+
+        window.clearAllData = () => {
+            if(confirm("Are you sure you want to delete ALL historical sensor data?")) {
+                remove(ref(db, 'sensor_readings')).then(() => alert("Database Cleared."));
+            }
+        };
+
+        // Monitor Auth State
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('auth-section').style.display = 'none';
+                document.getElementById('dashboard-section').style.display = 'block';
+                document.getElementById('userEmailTag').innerText = user.email;
+                if (user.email === ADMIN_EMAIL) document.getElementById('admin-panel').style.display = 'block';
+                setupDashboard();
+            } else {
+                document.getElementById('auth-section').style.display = 'block';
+                document.getElementById('dashboard-section').style.display = 'none';
             }
         });
     </script>
 </body>
     </html>
-    
+
