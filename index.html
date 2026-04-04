@@ -13,14 +13,14 @@
         h2 { color: #2c3e50; font-size: 1.2rem; }
         
         /* Status Banner */
-        #water-status { font-size: 2rem; font-weight: bold; padding: 15px; margin-bottom: 20px; border-radius: 10px; }
+        #water-status { font-size: 2rem; font-weight: bold; padding: 15px; margin-bottom: 20px; border-radius: 10px; transition: 0.3s; }
         .safe { color: #27ae60; background: #e8f5e9; border: 2px solid #27ae60; }
         .unsafe { color: #c0392b; background: #f9ebea; border: 2px solid #c0392b; animation: blinker 1.5s linear infinite; }
         @keyframes blinker { 50% { opacity: 0.5; } }
 
         /* Welcome Pop-up */
         #welcome-popup { display: none; position: fixed; top: 20%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 2000; border: 2px solid #3498db; }
-        #welcome-popup h2 { color: #3498db; margin: 0; }
+        #welcome-popup h2 { color: #3498db; margin: 0; font-family: serif; }
 
         /* Auth & Sidebar */
         .auth-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 50px auto; }
@@ -29,11 +29,12 @@
         .btn-login { background: #3498db; color: white; }
         .btn-signup { background: #95a5a6; color: white; }
         .btn-logout { background: #555; color: white; width: auto; padding: 8px 15px; }
-        .btn-admin { background: #e74c3c; color: white; margin-bottom: 20px; }
-        .header-bar { display: flex; justify-content: space-between; align-items: center; max-width: 800px; margin: 0 auto 20px; background: white; padding: 10px 20px; border-radius: 10px; margin-left: 60px; }
+        .btn-admin { background: #e74c3c; color: white; margin-bottom: 20px; width: 100%; }
+        
         #sidebar { height: 100%; width: 0; position: fixed; z-index: 1000; top: 0; left: 0; background-color: #2c3e50; overflow-x: hidden; transition: 0.5s; padding-top: 60px; color: white; text-align: left; }
         #sidebar p { padding: 10px 25px; font-size: 1.1rem; border-bottom: 1px solid #3e4f5f; margin: 0; }
         .menu-btn { position: fixed; top: 20px; left: 20px; font-size: 30px; cursor: pointer; z-index: 1001; color: #2c3e50; background: white; padding: 5px 10px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; max-width: 800px; margin: 0 auto 20px; background: white; padding: 10px 20px; border-radius: 10px; margin-left: 70px; }
     </style>
 </head>
 <body>
@@ -110,34 +111,58 @@
         const ADMIN_EMAIL = "nasonkiloo4@gmail.com";
         let charts = {};
 
+        // Sidebar logic
         window.toggleSidebar = () => {
             const sb = document.getElementById("sidebar");
             sb.style.width = sb.style.width === "250px" ? "0" : "250px";
         };
 
+        // Welcome Popup logic
         function showWelcome() {
             const popup = document.getElementById('welcome-popup');
             popup.style.display = 'block';
             setTimeout(() => { popup.style.display = 'none'; }, 4000);
         }
 
-        function createChart(canvasId, label, lineColor, yMax) {
+        // Custom Chart Plugin for Background Colors
+        const chartBackgroundPlugin = {
+            id: 'chartAreaBackground',
+            beforeDraw(chart) {
+                const {ctx, chartArea: {top, bottom, left, right, width, height}, config} = chart;
+                if (config.options.customBgColor) {
+                    ctx.save();
+                    ctx.fillStyle = config.options.customBgColor;
+                    ctx.fillRect(left, top, width, height);
+                    ctx.restore();
+                }
+            }
+        };
+
+        function createChart(canvasId, label, lineColor, yMax, bgColor) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             return new Chart(ctx, {
                 type: 'line',
-                data: { labels: [], datasets: [{ label: label, data: [], borderColor: lineColor, borderWidth: 3, fill: false, tension: 0.3 }] },
+                plugins: [chartBackgroundPlugin],
+                data: { 
+                    labels: [], 
+                    datasets: [{ label: label, data: [], borderColor: lineColor, borderWidth: 3, fill: false, tension: 0.3, pointBackgroundColor: lineColor }] 
+                },
                 options: { 
                     responsive: true, maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, max: yMax } }
+                    customBgColor: bgColor,
+                    scales: { 
+                        y: { beginAtZero: true, max: yMax, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' } }
+                    }
                 }
             });
         }
 
         const setupDashboard = () => {
             if (!charts.turbidity) {
-                charts.turbidity = createChart('turbidityChart', 'Turbidity', '#2ecc71', 10);
-                charts.tds = createChart('tdsChart', 'TDS', '#a04000', 200);
-                charts.temp = createChart('tempChart', 'Temp', '#a04000', 60);
+                charts.turbidity = createChart('turbidityChart', 'Turbidity', '#2ecc71', 10, '#4a0000'); // Maroon Bg, Green Line
+                charts.tds = createChart('tdsChart', 'TDS', '#a04000', 200, '#1b5e20'); // Green Bg, Brown Line
+                charts.temp = createChart('tempChart', 'Temp', '#a04000', 60, '#0d47a1'); // Blue Bg, Brown Line
             }
 
             onValue(ref(db, 'sensor_readings'), (snapshot) => {
@@ -162,7 +187,7 @@
                     document.getElementById('live-tds').innerText = latest.tds;
                     document.getElementById('live-temp').innerText = latest.temperature;
 
-                    // Safety Logic: Temp > 25, TDS > 50, Turbidity > 2
+                    // Safety Alert Logic: Temp > 25, TDS > 50, Turbidity > 2
                     const statusBox = document.getElementById('water-status');
                     if (latest.temperature > 25 || latest.tds > 50 || latest.turbidity > 2) {
                         statusBox.innerText = "Water Unsafe";
@@ -175,13 +200,17 @@
             });
         };
 
+        // Auth Functions
         window.handleSignUp = async () => {
             const email = document.getElementById('emailInput').value;
             const pass = document.getElementById('passInput').value;
             const confirm = document.getElementById('confirmPassInput').value;
             if (pass.length <= 4) return alert("Password must be > 4 characters");
-            if (pass !== confirm) return alert("Passwords match error");
-            try { await createUserWithEmailAndPassword(auth, email, pass); showWelcome(); } catch (e) { alert(e.message); }
+            if (pass !== confirm) return alert("Passwords do not match");
+            try { 
+                await createUserWithEmailAndPassword(auth, email, pass);
+                showWelcome(); 
+            } catch (e) { alert(e.message); }
         };
 
         window.handleLogin = () => {
@@ -191,7 +220,7 @@
         };
 
         window.handleLogout = () => signOut(auth).then(() => location.reload());
-        window.clearAllData = () => { if(confirm("Wipe all?")) remove(ref(db, 'sensor_readings')); };
+        window.clearAllData = () => { if(confirm("Wipe all historical records?")) remove(ref(db, 'sensor_readings')); };
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
@@ -208,4 +237,3 @@
     </script>
 </body>
 </html>
-
