@@ -7,8 +7,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
-        body { font-family: sans-serif; text-align: center; background-color: #eef2f7; padding: 10px; margin: 0; }
-        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        body { font-family: sans-serif; text-align: center; background-color: #f4f7f9; padding: 10px; margin: 0; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
         canvas { max-width: 100%; height: 250px !important; }
         h2 { color: #2c3e50; font-size: 1.2rem; }
         
@@ -58,8 +58,8 @@
         <div id="sidebar">
             <a href="javascript:void(0)" style="position: absolute; top: 10px; right: 25px; font-size: 36px; color: white; text-decoration: none;" onclick="toggleSidebar()">&times;</a>
             <h2 style="color: white; padding-left: 25px;">Live Values</h2>
-            <p>Turbidity: <b id="live-turb" style="color: #2ecc71;">--</b> NTU</p>
-            <p>Temperature: <b id="live-temp" style="color: #e67e22;">--</b> °C</p>
+            <p>Turbidity: <b id="live-turb" style="color: #27ae60;">--</b> NTU</p>
+            <p>Temperature: <b id="live-temp" style="color: #a04000;">--</b> °C</p>
             <p>TDS: <b id="live-tds" style="color: #a04000;">--</b> ppm</p>
         </div>
 
@@ -111,20 +111,17 @@
         const ADMIN_EMAIL = "nasonkiloo4@gmail.com";
         let charts = {};
 
-        // Sidebar logic
         window.toggleSidebar = () => {
             const sb = document.getElementById("sidebar");
             sb.style.width = sb.style.width === "250px" ? "0" : "250px";
         };
 
-        // Welcome Popup logic
         function showWelcome() {
             const popup = document.getElementById('welcome-popup');
             popup.style.display = 'block';
             setTimeout(() => { popup.style.display = 'none'; }, 4000);
         }
 
-        // Custom Chart Plugin for Background Colors
         const chartBackgroundPlugin = {
             id: 'chartAreaBackground',
             beforeDraw(chart) {
@@ -145,24 +142,26 @@
                 plugins: [chartBackgroundPlugin],
                 data: { 
                     labels: [], 
-                    datasets: [{ label: label, data: [], borderColor: lineColor, borderWidth: 3, fill: false, tension: 0.3, pointBackgroundColor: lineColor }] 
+                    datasets: [{ label: label, data: [], borderColor: lineColor, borderWidth: 3, fill: false, tension: 0.3, pointBackgroundColor: lineColor, pointRadius: 4 }] 
                 },
                 options: { 
                     responsive: true, maintainAspectRatio: false,
                     customBgColor: bgColor,
                     scales: { 
-                        y: { beginAtZero: true, max: yMax, grid: { color: 'rgba(255,255,255,0.1)' } },
-                        x: { grid: { color: 'rgba(255,255,255,0.1)' } }
-                    }
+                        y: { beginAtZero: true, max: yMax, grid: { color: 'rgba(0,0,0,0.05)' } },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: { legend: { display: true, labels: { boxWidth: 12 } } }
                 }
             });
         }
 
         const setupDashboard = () => {
             if (!charts.turbidity) {
-                charts.turbidity = createChart('turbidityChart', 'Turbidity', '#2ecc71', 10, '#4a0000'); // Maroon Bg, Green Line
-                charts.tds = createChart('tdsChart', 'TDS', '#a04000', 200, '#1b5e20'); // Green Bg, Brown Line
-                charts.temp = createChart('tempChart', 'Temp', '#a04000', 60, '#0d47a1'); // Blue Bg, Brown Line
+                // RGBA(R, G, B, Opacity) -> 0.2 is 20% transparent (very light)
+                charts.turbidity = createChart('turbidityChart', 'Turbidity', '#27ae60', 10, 'rgba(128, 0, 0, 0.15)'); 
+                charts.tds = createChart('tdsChart', 'TDS', '#a04000', 200, 'rgba(39, 174, 96, 0.15)'); 
+                charts.temp = createChart('tempChart', 'Temp', '#a04000', 60, 'rgba(52, 152, 219, 0.15)'); 
             }
 
             onValue(ref(db, 'sensor_readings'), (snapshot) => {
@@ -187,7 +186,6 @@
                     document.getElementById('live-tds').innerText = latest.tds;
                     document.getElementById('live-temp').innerText = latest.temperature;
 
-                    // Safety Alert Logic: Temp > 25, TDS > 50, Turbidity > 2
                     const statusBox = document.getElementById('water-status');
                     if (latest.temperature > 25 || latest.tds > 50 || latest.turbidity > 2) {
                         statusBox.innerText = "Water Unsafe";
@@ -200,17 +198,13 @@
             });
         };
 
-        // Auth Functions
         window.handleSignUp = async () => {
             const email = document.getElementById('emailInput').value;
             const pass = document.getElementById('passInput').value;
             const confirm = document.getElementById('confirmPassInput').value;
             if (pass.length <= 4) return alert("Password must be > 4 characters");
             if (pass !== confirm) return alert("Passwords do not match");
-            try { 
-                await createUserWithEmailAndPassword(auth, email, pass);
-                showWelcome(); 
-            } catch (e) { alert(e.message); }
+            try { await createUserWithEmailAndPassword(auth, email, pass); showWelcome(); } catch (e) { alert(e.message); }
         };
 
         window.handleLogin = () => {
@@ -220,7 +214,7 @@
         };
 
         window.handleLogout = () => signOut(auth).then(() => location.reload());
-        window.clearAllData = () => { if(confirm("Wipe all historical records?")) remove(ref(db, 'sensor_readings')); };
+        window.clearAllData = () => { if(confirm("Wipe all records?")) remove(ref(db, 'sensor_readings')); };
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
@@ -237,3 +231,4 @@
     </script>
 </body>
 </html>
+
