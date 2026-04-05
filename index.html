@@ -14,38 +14,40 @@
         :root { --temp-clr: #007bff; --turb-clr: #6f42c1; --tds-clr: #fd7e14; }
         body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
 
-        /* Login Screen */
-        #login-container { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 320px; }
+        /* Auth Container */
+        #auth-container { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 340px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        .btn-login { width: 100%; background: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-auth { width: 100%; background: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .toggle-link { color: #007bff; cursor: pointer; font-size: 0.85em; margin-top: 15px; display: block; text-decoration: underline; }
         
-        /* Dashboard (Hidden by default) */
+        /* Dashboard (Hidden by default until login) */
         #main-dashboard { display: none; width: 100%; padding: 20px; text-align: center; align-self: flex-start; }
         
-        /* Hamburger & Sidebar */
+        /* Sidebar Styles */
         .hamburger { font-size: 30px; cursor: pointer; position: fixed; top: 15px; left: 20px; z-index: 10; color: #333; }
         .sidebar { height: 100%; width: 0; position: fixed; z-index: 11; top: 0; left: 0; background-color: #1a1a1a; overflow-x: hidden; transition: 0.5s; padding-top: 60px; color: white; text-align: left; }
         .live-stat { padding: 15px 25px; border-bottom: 1px solid #333; }
         .live-stat span { display: block; font-size: 1.4em; font-weight: bold; }
         .closebtn { position: absolute; top: 10px; right: 25px; font-size: 36px; cursor: pointer; color: #818181; }
 
-        /* Charts Grid */
+        /* Grid & Cards */
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; max-width: 1200px; margin: 40px auto; }
         .chart-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         
         .btn-logout { position: fixed; top: 15px; right: 20px; background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
-        .btn-wipe { background: #dc3545; color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 30px; }
+        .btn-wipe { background: #dc3545; color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 30px; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="login-container">
-        <h2 style="color: #333;">Water Monitor Login</h2>
-        <p style="color: #666; font-size: 0.9em;">Please sign in to view live charts</p>
+    <div id="auth-container">
+        <h2 id="auth-title">Water Monitor Login</h2>
+        <p id="auth-desc" style="color: #666; font-size: 0.9em;">Sign in to view live data</p>
         <input type="email" id="email" placeholder="Email Address">
         <input type="password" id="password" placeholder="Password">
-        <button class="btn-login" onclick="login()">Access Dashboard</button>
-        <p id="login-error" style="color: red; font-size: 0.8em; margin-top: 10px;"></p>
+        <button id="auth-btn" class="btn-auth" onclick="handleAuth()">Login</button>
+        <span id="auth-toggle" class="toggle-link" onclick="toggleAuthMode()">Don't have an account? Create one</span>
+        <p id="auth-error" style="color: red; font-size: 0.8em; margin-top: 10px;"></p>
     </div>
 
     <div id="main-dashboard">
@@ -54,68 +56,71 @@
 
         <div id="mySidebar" class="sidebar">
             <span class="closebtn" onclick="toggleNav(0)">&times;</span>
-            <div class="live-stat">Temp <span id="side-temp" style="color: var(--temp-clr);">--°C</span></div>
-            <div class="live-stat">Turbidity <span id="side-turb" style="color: var(--turb-clr);">-- NTU</span></div>
-            <div class="live-stat">TDS <span id="side-tds" style="color: var(--tds-clr);">-- ppm</span></div>
+            <div class="live-stat">Temp (Live) <span id="side-temp" style="color: var(--temp-clr);">--°C</span></div>
+            <div class="live-stat">Turbidity (Live) <span id="side-turb" style="color: var(--turb-clr);">-- NTU</span></div>
+            <div class="live-stat">TDS (Live) <span id="side-tds" style="color: var(--tds-clr);">-- ppm</span></div>
         </div>
 
-        <h1>System Analysis: Live Data</h1>
-        <div id="db-status" style="color: #28a745; font-weight: bold;">Synchronizing with ESP32...</div>
+        <h1>Water Quality Analysis</h1>
+        <div id="db-status" style="color: #28a745; font-weight: bold;">Connecting to ESP32...</div>
 
         <div class="grid">
             <div class="chart-card"><h3>Temperature Trend</h3><canvas id="tempChart"></canvas></div>
             <div class="chart-card"><h3>Turbidity Trend</h3><canvas id="turbChart"></canvas></div>
-            <div class="chart-card)<h3>TDS Level Trend</h3><canvas id="tdsChart"></canvas></div>
+            <div class="chart-card"><h3>TDS Level Trend</h3><canvas id="tdsChart"></canvas></div>
         </div>
 
-        <button class="btn-wipe" id="wipeBtn" style="display:none;" onclick="wipeData()">WIPE ALL RECORDS</button>
+        <button class="btn-wipe" id="wipeBtn" onclick="wipeData()">WIPE ALL RECORDS</button>
     </div>
 
     <script>
-        // --- CONFIG ---
         const firebaseConfig = { databaseURL: "https://water-quality-monitoring-96e08-default-rtdb.europe-west1.firebasedatabase.app" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const auth = firebase.auth();
 
-        // --- AUTH LOGIC ---
-        function login() {
+        let isLoginMode = true;
+
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? "Water Monitor Login" : "Create Account";
+            document.getElementById('auth-btn').innerText = isLoginMode ? "Login" : "Sign Up";
+            document.getElementById('auth-toggle').innerText = isLoginMode ? "Don't have an account? Create one" : "Already have an account? Login";
+        }
+
+        function handleAuth() {
             const e = document.getElementById('email').value;
             const p = document.getElementById('password').value;
-            auth.signInWithEmailAndPassword(e, p).catch(err => {
-                document.getElementById('login-error').innerText = err.message;
-            });
+            const action = isLoginMode ? auth.signInWithEmailAndPassword(e, p) : auth.createUserWithEmailAndPassword(e, p);
+            action.catch(err => { document.getElementById('auth-error').innerText = err.message; });
         }
 
         function logout() { auth.signOut().then(() => location.reload()); }
 
         auth.onAuthStateChanged(user => {
             if (user) {
-                // User is logged in
-                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('auth-container').style.display = 'none';
                 document.getElementById('main-dashboard').style.display = 'block';
-                document.body.style.display = 'block'; // Reset flex layout
+                document.body.style.display = 'block';
                 startDataSync();
                 
-                // Show wipe button only for your email
-                if(user.email === 'YOUR_EMAIL@gmail.com') {
+                // RESTRICT WIPE TO YOUR EMAIL
+                if(user.email === 'nasonkilo07@gmail.com') { 
                     document.getElementById('wipeBtn').style.display = 'inline-block';
                 }
             } else {
-                // User is logged out
-                document.getElementById('login-container').style.display = 'block';
+                document.getElementById('auth-container').style.display = 'block';
                 document.getElementById('main-dashboard').style.display = 'none';
             }
         });
 
-        // --- CHART & DATA LOGIC ---
         let tChart, bChart, sChart;
 
         function initCharts() {
             const cfg = (id, label, color) => new Chart(document.getElementById(id), {
                 type: 'line',
                 data: { labels: [], datasets: [{ label: label, borderColor: color, data: [], fill: true, backgroundColor: color + '11', tension: 0.4 }] },
-                options: { responsive: true }
+                options: { responsive: true, plugins: { legend: { display: false } } }
             });
             tChart = cfg('tempChart', 'Temp °C', '#007bff');
             bChart = cfg('turbChart', 'Turbidity NTU', '#6f42c1');
@@ -141,6 +146,7 @@
                 document.getElementById('side-temp').innerText = last.temp.toFixed(1) + "°C";
                 document.getElementById('side-turb').innerText = last.turb.toFixed(1) + " NTU";
                 document.getElementById('side-tds').innerText = last.tds.toFixed(0) + " ppm";
+                document.getElementById('db-status').innerText = "Live: Synchronized";
             });
         }
 
