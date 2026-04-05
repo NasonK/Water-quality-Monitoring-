@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Safe Water Monitor - Pro Build</title>
+    <title>Safe Water Monitor - Admin Secure</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
@@ -28,8 +28,8 @@
         .btn-login { background: #3498db; color: white; }
         .btn-signup { background: #2ecc71; color: white; }
         .btn-logout { background: #555; color: white; width: auto; padding: 8px 15px; }
+        .btn-admin { background: #e74c3c; color: white; margin-bottom: 20px; width: 100%; font-size: 1rem; }
         
-        /* Layout */
         #sidebar { height: 100%; width: 0; position: fixed; z-index: 1000; top: 0; left: 0; background-color: #2c3e50; overflow-x: hidden; transition: 0.5s; padding-top: 60px; color: white; text-align: left; }
         #sidebar p { padding: 10px 25px; font-size: 1.1rem; border-bottom: 1px solid #3e4f5f; margin: 0; }
         .menu-btn { position: fixed; top: 20px; left: 20px; font-size: 30px; cursor: pointer; z-index: 1001; color: #2c3e50; background: white; padding: 5px 10px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
@@ -70,6 +70,10 @@
             <button class="btn-logout" onclick="handleLogout()">Logout</button>
         </div>
 
+        <div id="admin-controls" style="display: none; max-width: 800px; margin: auto;">
+            <button class="btn-admin" onclick="clearAllData()">⚠️ ADMIN: WIPE DATABASE RECORDS</button>
+        </div>
+
         <div id="water-status" class="safe">System Online...</div>
 
         <div class="container" style="border-left: 10px solid #800000;">
@@ -91,7 +95,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDs8pzY8IfROTNQDThaI44jYelcL2dlGnM",
@@ -106,6 +110,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth();
         const db = getDatabase();
+        const MY_ADMIN_EMAIL = "nasonkilo07@gmail.com";
         let charts = {};
         let isSignUpMode = false;
 
@@ -132,7 +137,7 @@
         window.handleLogin = () => {
             const email = document.getElementById('emailInput').value;
             const pass = document.getElementById('passInput').value;
-            signInWithEmailAndPassword(auth, email, pass).catch(e => alert("Login Error: " + e.message));
+            signInWithEmailAndPassword(auth, email, pass).catch(e => alert(e.message));
         };
 
         window.handleSignUp = () => {
@@ -141,10 +146,21 @@
             const confirm = document.getElementById('confirmPassInput').value;
             if (pass.length < 8) return alert("Password must be at least 8 characters!");
             if (pass !== confirm) return alert("Passwords do not match!");
-            createUserWithEmailAndPassword(auth, email, pass).catch(e => alert("Signup Error: " + e.message));
+            createUserWithEmailAndPassword(auth, email, pass).catch(e => alert(e.message));
         };
 
         window.handleLogout = () => signOut(auth).then(() => location.reload());
+        
+        // Only admin can call this function
+        window.clearAllData = () => {
+            if (auth.currentUser.email === MY_ADMIN_EMAIL) {
+                if(confirm("Permanently wipe all sensor history?")) {
+                    remove(ref(db, 'sensor_readings'));
+                }
+            } else {
+                alert("Access Denied: Only nasonkilo07@gmail.com can edit data.");
+            }
+        };
 
         function createChart(canvasId, label, lineColor, yMax, bgColor) {
             const ctx = document.getElementById(canvasId).getContext('2d');
@@ -201,6 +217,14 @@
                 document.getElementById('auth-section').style.display = 'none';
                 document.getElementById('dashboard-section').style.display = 'block';
                 document.getElementById('userEmailTag').innerText = user.email;
+                
+                // Show admin button ONLY if the email matches yours
+                if (user.email === MY_ADMIN_EMAIL) {
+                    document.getElementById('admin-controls').style.display = 'block';
+                } else {
+                    document.getElementById('admin-controls').style.display = 'none';
+                }
+                
                 setupDashboard();
             } else {
                 document.getElementById('auth-section').style.display = 'block';
@@ -209,5 +233,4 @@
         });
     </script>
 </body>
-    </html>
-    
+</html>
