@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Water Monitor</title>
+    <title>Secure Water Analysis Portal</title>
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -12,112 +12,140 @@
     
     <style>
         :root { --temp-clr: #007bff; --turb-clr: #6f42c1; --tds-clr: #fd7e14; }
-        body { font-family: 'Segoe UI', sans-serif; background-color: #f8f9fa; margin: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
 
-        /* Hamburger Menu & Sidebar */
-        .hamburger { font-size: 30px; cursor: pointer; position: fixed; top: 15px; left: 20px; z-index: 10; color: #333; }
-        .sidebar { height: 100%; width: 0; position: fixed; z-index: 11; top: 0; left: 0; background-color: #111; overflow-x: hidden; transition: 0.5s; padding-top: 60px; color: white; }
-        .sidebar a { padding: 15px 25px; text-decoration: none; font-size: 1.2em; color: #818181; display: block; }
-        .sidebar .closebtn { position: absolute; top: 0; right: 25px; font-size: 36px; margin-left: 50px; }
-        .live-stat { padding: 10px 25px; border-bottom: 1px solid #333; }
-        .live-stat span { display: block; font-size: 1.5em; font-weight: bold; color: white; }
-
-        /* Main Content */
-        .content { transition: margin-left .5s; padding: 20px; text-align: center; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; max-width: 1200px; margin: auto; }
-        .chart-card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        /* Login Screen */
+        #login-container { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 320px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .btn-login { width: 100%; background: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         
-        h1 { margin-top: 50px; }
-        .btn-wipe { background: #dc3545; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; margin-top: 40px; }
+        /* Dashboard (Hidden by default) */
+        #main-dashboard { display: none; width: 100%; padding: 20px; text-align: center; align-self: flex-start; }
+        
+        /* Hamburger & Sidebar */
+        .hamburger { font-size: 30px; cursor: pointer; position: fixed; top: 15px; left: 20px; z-index: 10; color: #333; }
+        .sidebar { height: 100%; width: 0; position: fixed; z-index: 11; top: 0; left: 0; background-color: #1a1a1a; overflow-x: hidden; transition: 0.5s; padding-top: 60px; color: white; text-align: left; }
+        .live-stat { padding: 15px 25px; border-bottom: 1px solid #333; }
+        .live-stat span { display: block; font-size: 1.4em; font-weight: bold; }
+        .closebtn { position: absolute; top: 10px; right: 25px; font-size: 36px; cursor: pointer; color: #818181; }
+
+        /* Charts Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; max-width: 1200px; margin: 40px auto; }
+        .chart-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        
+        .btn-logout { position: fixed; top: 15px; right: 20px; background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
+        .btn-wipe { background: #dc3545; color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 30px; }
     </style>
 </head>
 <body>
 
-    <div class="hamburger" onclick="openNav()">&#9776;</div>
-
-    <div id="mySidebar" class="sidebar">
-        <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
-        <div class="live-stat">Temp (Live) <span id="side-temp" style="color: var(--temp-clr);">--°C</span></div>
-        <div class="live-stat">Turbidity (Live) <span id="side-turb" style="color: var(--turb-clr);">-- NTU</span></div>
-        <div class="live-stat">TDS (Live) <span id="side-tds" style="color: var(--tds-clr);">-- ppm</span></div>
-        <a href="#" onclick="adminLogin()" style="font-size: 0.8em; margin-top: 20px;">Admin Login</a>
+    <div id="login-container">
+        <h2 style="color: #333;">Water Monitor Login</h2>
+        <p style="color: #666; font-size: 0.9em;">Please sign in to view live charts</p>
+        <input type="email" id="email" placeholder="Email Address">
+        <input type="password" id="password" placeholder="Password">
+        <button class="btn-login" onclick="login()">Access Dashboard</button>
+        <p id="login-error" style="color: red; font-size: 0.8em; margin-top: 10px;"></p>
     </div>
 
-    <div id="main" class="content">
-        <h1>Water Quality Analysis</h1>
-        <p id="db-status">Connecting...</p>
+    <div id="main-dashboard">
+        <div class="hamburger" onclick="toggleNav(250)">&#9776;</div>
+        <button class="btn-logout" onclick="logout()">Logout</button>
+
+        <div id="mySidebar" class="sidebar">
+            <span class="closebtn" onclick="toggleNav(0)">&times;</span>
+            <div class="live-stat">Temp <span id="side-temp" style="color: var(--temp-clr);">--°C</span></div>
+            <div class="live-stat">Turbidity <span id="side-turb" style="color: var(--turb-clr);">-- NTU</span></div>
+            <div class="live-stat">TDS <span id="side-tds" style="color: var(--tds-clr);">-- ppm</span></div>
+        </div>
+
+        <h1>System Analysis: Live Data</h1>
+        <div id="db-status" style="color: #28a745; font-weight: bold;">Synchronizing with ESP32...</div>
 
         <div class="grid">
             <div class="chart-card"><h3>Temperature Trend</h3><canvas id="tempChart"></canvas></div>
             <div class="chart-card"><h3>Turbidity Trend</h3><canvas id="turbChart"></canvas></div>
-            <div class="chart-card"><h3>TDS Trend</h3><canvas id="tdsChart"></canvas></div>
+            <div class="chart-card)<h3>TDS Level Trend</h3><canvas id="tdsChart"></canvas></div>
         </div>
 
-        <button class="btn-wipe" id="wipeBtn" style="display:none;" onclick="wipeData()">Wipe All Records</button>
+        <button class="btn-wipe" id="wipeBtn" style="display:none;" onclick="wipeData()">WIPE ALL RECORDS</button>
     </div>
 
     <script>
-        // FIREBASE SETUP
+        // --- CONFIG ---
         const firebaseConfig = { databaseURL: "https://water-quality-monitoring-96e08-default-rtdb.europe-west1.firebasedatabase.app" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const auth = firebase.auth();
 
-        // CHART SETUP
-        function createChart(id, label, color) {
-            return new Chart(document.getElementById(id), {
-                type: 'line',
-                data: { labels: [], datasets: [{ label: label, borderColor: color, data: [], fill: true, backgroundColor: color + '22', tension: 0.4 }] },
-                options: { responsive: true, plugins: { legend: { display: false } } }
+        // --- AUTH LOGIC ---
+        function login() {
+            const e = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
+            auth.signInWithEmailAndPassword(e, p).catch(err => {
+                document.getElementById('login-error').innerText = err.message;
             });
         }
-        const tChart = createChart('tempChart', 'Temp °C', '#007bff');
-        const bChart = createChart('turbChart', 'Turbidity NTU', '#6f42c1');
-        const sChart = createChart('tdsChart', 'TDS ppm', '#fd7e14');
 
-        // REAL-TIME DATA
-        db.ref('water_data').limitToLast(20).on('value', snap => {
-            const labels = [], tData = [], bData = [], sData = [];
-            snap.forEach(child => {
-                const v = child.val();
-                labels.push(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-                tData.push(v.temp); bData.push(v.turb); sData.push(v.tds);
-            });
-
-            // Update Charts
-            tChart.data.labels = labels; tChart.data.datasets[0].data = tData; tChart.update();
-            bChart.data.labels = labels; bChart.data.datasets[0].data = bData; bChart.update();
-            sChart.data.labels = labels; sChart.data.datasets[0].data = sData; sChart.update();
-
-            // Update Sidebar (Last element)
-            const last = Object.values(snap.val()).pop();
-            document.getElementById('side-temp').innerText = last.temp + "°C";
-            document.getElementById('side-turb').innerText = last.turb + " NTU";
-            document.getElementById('side-tds').innerText = last.tds + " ppm";
-            document.getElementById('db-status').innerText = "Live: Data syncing...";
-        });
-
-        // ADMIN LOGIC
-        function adminLogin() {
-            const email = prompt("Enter Admin Email:");
-            const pass = prompt("Enter Password:");
-            auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
-        }
+        function logout() { auth.signOut().then(() => location.reload()); }
 
         auth.onAuthStateChanged(user => {
-            if (user && user.email === 'YOUR_EMAIL@gmail.com') {
-                document.getElementById('wipeBtn').style.display = 'inline-block';
+            if (user) {
+                // User is logged in
+                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('main-dashboard').style.display = 'block';
+                document.body.style.display = 'block'; // Reset flex layout
+                startDataSync();
+                
+                // Show wipe button only for your email
+                if(user.email === 'YOUR_EMAIL@gmail.com') {
+                    document.getElementById('wipeBtn').style.display = 'inline-block';
+                }
+            } else {
+                // User is logged out
+                document.getElementById('login-container').style.display = 'block';
+                document.getElementById('main-dashboard').style.display = 'none';
             }
         });
 
-        function wipeData() {
-            if(confirm("Wipe all records?")) db.ref('water_data').remove();
+        // --- CHART & DATA LOGIC ---
+        let tChart, bChart, sChart;
+
+        function initCharts() {
+            const cfg = (id, label, color) => new Chart(document.getElementById(id), {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: label, borderColor: color, data: [], fill: true, backgroundColor: color + '11', tension: 0.4 }] },
+                options: { responsive: true }
+            });
+            tChart = cfg('tempChart', 'Temp °C', '#007bff');
+            bChart = cfg('turbChart', 'Turbidity NTU', '#6f42c1');
+            sChart = cfg('tdsChart', 'TDS ppm', '#fd7e14');
         }
 
-        // NAVIGATION
-        function openNav() { document.getElementById("mySidebar").style.width = "250px"; }
-        function closeNav() { document.getElementById("mySidebar").style.width = "0"; }
+        function startDataSync() {
+            initCharts();
+            db.ref('water_data').limitToLast(20).on('value', snap => {
+                if(!snap.exists()) return;
+                const labels = [], tData = [], bData = [], sData = [];
+                snap.forEach(child => {
+                    const v = child.val();
+                    labels.push(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+                    tData.push(v.temp); bData.push(v.turb); sData.push(v.tds);
+                });
+                
+                tChart.data.labels = labels; tChart.data.datasets[0].data = tData; tChart.update();
+                bChart.data.labels = labels; bChart.data.datasets[0].data = bData; bChart.update();
+                sChart.data.labels = labels; sChart.data.datasets[0].data = sData; sChart.update();
+
+                const last = Object.values(snap.val()).pop();
+                document.getElementById('side-temp').innerText = last.temp.toFixed(1) + "°C";
+                document.getElementById('side-turb').innerText = last.turb.toFixed(1) + " NTU";
+                document.getElementById('side-tds').innerText = last.tds.toFixed(0) + " ppm";
+            });
+        }
+
+        function toggleNav(w) { document.getElementById("mySidebar").style.width = w + "px"; }
+        function wipeData() { if(confirm("Permanently delete data?")) db.ref('water_data').remove(); }
     </script>
 </body>
-    </html>
-    
+</html>
