@@ -3,74 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Water Quality Monitor</title>
+    <title>Live Water Quality Monitor - Professional</title>
+    
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
-        .container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); min-width: 200px; }
-        .value { font-size: 2em; font-weight: bold; color: #007bff; }
-        .unit { font-size: 0.5em; color: #666; }
-        h1 { color: #333; }
-        .status { color: green; font-size: 0.9em; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #eef2f5; margin: 0; padding: 20px; }
+        
+        /* Top Left Status Lines */
+        .header-info { text-align: left; position: absolute; top: 10px; left: 20px; font-size: 0.85em; color: #555; line-height: 1.4; }
+        .live-dot { height: 10px; width: 10px; background-color: #28a745; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        h1 { margin-top: 40px; color: #2c3e50; }
+        .status { font-weight: bold; margin-bottom: 20px; }
+
+        .container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; padding: 10px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); min-width: 220px; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); }
+        
+        .value { font-size: 2.5em; font-weight: bold; color: #007bff; }
+        .unit { font-size: 0.4em; color: #7f8c8d; margin-left: 5px; }
+
+        /* Graph Section */
+        .chart-container { background: white; margin: 30px auto; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); max-width: 900px; }
+
+        /* Admin Section */
+        .admin-zone { margin-top: 50px; padding: 20px; border-top: 1px solid #ccc; }
+        .btn-wipe { background-color: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-wipe:hover { background-color: #c82333; }
     </style>
 </head>
 <body>
 
-    <h1>Water Quality Monitoring Dashboard</h1>
-    <p class="status" id="db-status">Connecting to live data...</p>
+    <div class="header-info">
+        <div><span class="live-dot"></span><strong>Live Feed:</strong> Active</div>
+        <div id="last-update">Last Sync: --:--:--</div>
+        <div id="device-id">Device: ESP32_Water_Station_01</div>
+    </div>
+
+    <h1>Water Quality Dashboard</h1>
+    <p class="status" id="db-status" style="color: #28a745;">Establishing Secure Connection...</p>
 
     <div class="container">
         <div class="card">
             <h3>Temperature</h3>
             <div class="value" id="temp-val">--<span class="unit">°C</span></div>
         </div>
-
         <div class="card">
             <h3>Turbidity</h3>
-            <div class="value" id="turb-val">--<span class="unit">NTU</span></div>
+            <div class="value" id="turb-val" style="color: #6f42c1;">--<span class="unit">NTU</span></div>
         </div>
-
         <div class="card">
-            <h3>Total Dissolved Solids</h3>
-            <div class="value" id="tds-val">--<span class="unit">ppm</span></div>
+            <h3>TDS Level</h3>
+            <div class="value" id="tds-val" style="color: #fd7e14;">--<span class="unit">ppm</span></div>
         </div>
     </div>
 
+    <div class="chart-container">
+        <canvas id="waterChart"></canvas>
+    </div>
+
+    <div class="admin-zone">
+        <p style="color: #7f8c8d; font-size: 0.8em;">ADMINISTRATION PANEL</p>
+        <button class="btn-wipe" onclick="wipeRecords()">WIPE DATABASE RECORDS</button>
+    </div>
+
     <script>
-        // 1. YOUR FIREBASE CONFIGURATION (Must match Arduino)
         const firebaseConfig = {
             databaseURL: "https://water-quality-monitoring-96e08-default-rtdb.europe-west1.firebasedatabase.app"
         };
-
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // 2. REFERENCE TO YOUR DATA PATH
-        // Note: In Arduino we used .pushJSON to "/water_data", 
-        // so we listen to the 'child_added' or the latest entry.
+        // --- Chart Configuration ---
+        const ctx = document.getElementById('waterChart').getContext('2d');
+        const waterChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Temp (°C)', borderColor: '#007bff', data: [], fill: false, tension: 0.3 },
+                    { label: 'Turbidity (NTU)', borderColor: '#6f42c1', data: [], fill: false, tension: 0.3 },
+                    { label: 'TDS (ppm)', borderColor: '#fd7e14', data: [], fill: false, tension: 0.3 }
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+
+        // --- Data Listening ---
         const sensorRef = database.ref('water_data');
 
+        // Update cards with newest data
         sensorRef.limitToLast(1).on('value', (snapshot) => {
             if (snapshot.exists()) {
                 document.getElementById('db-status').innerText = "System Online: Receiving Live Data";
+                document.getElementById('last-update').innerText = "Last Sync: " + new Date().toLocaleTimeString();
                 
-                // Firebase .push creates unique IDs, so we loop once to get the latest
-                snapshot.forEach((childSnapshot) => {
-                    const data = childSnapshot.val();
-                    
-                    // Update the UI with the parameters from your Arduino code
+                snapshot.forEach((child) => {
+                    const data = child.val();
                     document.getElementById('temp-val').innerHTML = data.temp.toFixed(1) + '<span class="unit">°C</span>';
                     document.getElementById('turb-val').innerHTML = data.turb.toFixed(1) + '<span class="unit">NTU</span>';
                     document.getElementById('tds-val').innerHTML = data.tds.toFixed(0) + '<span class="unit">ppm</span>';
                 });
-            } else {
-                document.getElementById('db-status').innerText = "Waiting for data from ESP32...";
             }
         });
+
+        // Update Chart with last 20 readings
+        sensorRef.limitToLast(20).on('value', (snapshot) => {
+            const labels = [];
+            const tempD = [];
+            const turbD = [];
+            const tdsD = [];
+
+            snapshot.forEach((child) => {
+                const val = child.val();
+                labels.push(new Date().toLocaleTimeString()); // Or use data.time if sent by ESP32
+                tempD.push(val.temp);
+                turbD.push(val.turb);
+                tdsD.push(val.tds);
+            });
+
+            waterChart.data.labels = labels;
+            waterChart.data.datasets[0].data = tempD;
+            waterChart.data.datasets[1].data = turbD;
+            waterChart.data.datasets[2].data = tdsD;
+            waterChart.update();
+        });
+
+        // --- Admin Wipe Logic ---
+        function wipeRecords() {
+            if (confirm("CRITICAL: Are you sure you want to delete all historical sensor data? This cannot be undone.")) {
+                database.ref('water_data').remove()
+                    .then(() => {
+                        alert("Database wiped successfully.");
+                        location.reload();
+                    })
+                    .catch((error) => alert("Error: " + error.message));
+            }
+        }
     </script>
 </body>
 </html>
