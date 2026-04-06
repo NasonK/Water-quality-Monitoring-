@@ -203,7 +203,7 @@
                     document.getElementById('live-temp').innerText = (latest.temperature === -127 ? "Offline" : latest.temperature) + " °C";
 
                     const statusBox = document.getElementById('water-status');
-                    if (latest.temperature > 25 || latest.tds > 50 || latest.turbidity > 2) {
+                    if (latest.temperature > 35 || latest.tds > 500 || latest.turbidity > 2) {
                         statusBox.innerText = "Water Unsafe"; statusBox.className = "unsafe";
                     } else {
                         statusBox.innerText = "Water Safe"; statusBox.className = "safe";
