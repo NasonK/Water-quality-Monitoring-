@@ -60,8 +60,8 @@
         <div id="sidebar">
             <a href="javascript:void(0)" style="position: absolute; top: 10px; right: 25px; font-size: 36px; color: white; text-decoration: none;" onclick="toggleSidebar()">&times;</a>
             <h2 style="color: white; padding-left: 25px;">Live Values</h2>
+            <p>Turbidity: <b id="live-turb" style="color: #2ecc71;">--</b> NTU</p>
             <p>Temperature: <b id="live-temp" style="color: #ff9800;">--</b> °C</p>
-            <p>TDS: <b id="live-tds" style="color: #ff9800;">--</b> ppm</p>
         </div>
 
         <div class="header-bar">
@@ -75,9 +75,9 @@
 
         <div id="water-status" class="safe">System Online...</div>
 
-        <div class="container" style="border-left: 10px solid #27ae60;">
-            <h2>Total Dissolved Solids (TDS)</h2>
-            <canvas id="tdsChart"></canvas>
+        <div class="container" style="border-left: 10px solid #800000;">
+            <h2>Turbidity Level (NTU)</h2>
+            <canvas id="turbidityChart"></canvas>
         </div>
 
         <div class="container" style="border-left: 10px solid #3498db;">
@@ -165,8 +165,8 @@
         }
 
         const setupDashboard = () => {
-            if (!charts.tds) {
-                charts.tds = createChart('tdsChart', 'TDS', '#a04000', 500, 'rgba(160, 64, 0, 0.1)'); 
+            if (!charts.turbidity) {
+                charts.turbidity = createChart('turbidityChart', 'Turbidity', '#2ecc71', 10, 'rgba(46, 204, 113, 0.1)'); 
                 charts.temp = createChart('tempChart', 'Temp', '#3498db', 60, 'rgba(52, 152, 219, 0.1)'); 
             }
 
@@ -175,24 +175,24 @@
                 if (data) {
                     const keys = Object.keys(data).sort();
                     const last15 = keys.slice(-15);
-                    const labels = [], tds = [], temp = [];
+                    const labels = [], turb = [], temp = [];
                     
                     last15.forEach(key => {
                         const entry = data[key];
                         labels.push(entry.time ? entry.time + "s" : "");
-                        tds.push(entry.tds || 0);
+                        turb.push(entry.turbidity || 0);
                         temp.push(entry.temperature === -127 ? null : entry.temperature);
                     });
 
-                    charts.tds.data.labels = labels; charts.tds.data.datasets[0].data = tds; charts.tds.update();
+                    charts.turbidity.data.labels = labels; charts.turbidity.data.datasets[0].data = turb; charts.turbidity.update();
                     charts.temp.data.labels = labels; charts.temp.data.datasets[0].data = temp; charts.temp.update();
 
                     const latest = data[keys[keys.length - 1]];
-                    document.getElementById('live-tds').innerText = Math.round(latest.tds || 0) + " ppm";
+                    document.getElementById('live-turb').innerText = (latest.turbidity || 0) + " NTU";
                     document.getElementById('live-temp').innerText = (latest.temperature === -127 ? "Offline" : latest.temperature) + " °C";
 
                     const statusBox = document.getElementById('water-status');
-                    if (latest.temperature > 35 || latest.tds > 500) {
+                    if (latest.temperature > 35 || latest.turbidity > 2) {
                         statusBox.innerText = "Water Unsafe"; statusBox.className = "unsafe";
                     } else {
                         statusBox.innerText = "Water Safe"; statusBox.className = "safe";
@@ -221,4 +221,5 @@
         });
     </script>
 </body>
-</html>
+                    </html>
+                    
