@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Safe Water Monitor - Admin Secure</title>
+    <title>Safe Water Monitor - Triple Sensor Secure</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
@@ -60,8 +60,9 @@
         <div id="sidebar">
             <a href="javascript:void(0)" style="position: absolute; top: 10px; right: 25px; font-size: 36px; color: white; text-decoration: none;" onclick="toggleSidebar()">&times;</a>
             <h2 style="color: white; padding-left: 25px;">Live Values</h2>
-            <p>Turbidity: <b id="live-turb" style="color: #2ecc71;">--</b> NTU</p>
             <p>Temperature: <b id="live-temp" style="color: #ff9800;">--</b> °C</p>
+            <p>TDS: <b id="live-tds" style="color: #3498db;">--</b> ppm</p>
+            <p>Turbidity: <b id="live-turb" style="color: #2ecc71;">--</b> NTU</p>
         </div>
 
         <div class="header-bar">
@@ -75,9 +76,14 @@
 
         <div id="water-status" class="safe">System Online...</div>
 
-        <div class="container" style="border-left: 10px solid #800000;">
+        <div class="container" style="border-left: 10px solid #2ecc71;">
             <h2>Turbidity Level (NTU)</h2>
             <canvas id="turbidityChart"></canvas>
+        </div>
+
+        <div class="container" style="border-left: 10px solid #a04000;">
+            <h2>Total Dissolved Solids (TDS)</h2>
+            <canvas id="tdsChart"></canvas>
         </div>
 
         <div class="container" style="border-left: 10px solid #3498db;">
@@ -108,6 +114,7 @@
         let charts = {};
         let isSignUpMode = false;
 
+        // UI Functions
         window.togglePass = (id) => {
             const input = document.getElementById(id);
             input.type = input.type === "password" ? "text" : "password";
@@ -128,6 +135,7 @@
             sb.style.width = sb.style.width === "250px" ? "0" : "250px";
         };
 
+        // Auth Handlers
         window.handleLogin = () => {
             const email = document.getElementById('emailInput').value;
             const pass = document.getElementById('passInput').value;
@@ -151,7 +159,7 @@
                     remove(ref(db, 'sensor_readings'));
                 }
             } else {
-                alert("Access Denied: Only nasonkilo07@gmail.com can edit data.");
+                alert("Access Denied: Only admin can edit data.");
             }
         };
 
@@ -165,8 +173,10 @@
         }
 
         const setupDashboard = () => {
-            if (!charts.turbidity) {
+            // Initializing all 3 charts
+            if (!charts.tds) {
                 charts.turbidity = createChart('turbidityChart', 'Turbidity', '#2ecc71', 10, 'rgba(46, 204, 113, 0.1)'); 
+                charts.tds = createChart('tdsChart', 'TDS', '#a04000', 500, 'rgba(160, 64, 0, 0.1)'); 
                 charts.temp = createChart('tempChart', 'Temp', '#3498db', 60, 'rgba(52, 152, 219, 0.1)'); 
             }
 
@@ -175,24 +185,32 @@
                 if (data) {
                     const keys = Object.keys(data).sort();
                     const last15 = keys.slice(-15);
-                    const labels = [], turb = [], temp = [];
+                    const labels = [], turb = [], tds = [], temp = [];
                     
                     last15.forEach(key => {
                         const entry = data[key];
                         labels.push(entry.time ? entry.time + "s" : "");
                         turb.push(entry.turbidity || 0);
+                        tds.push(entry.tds || 0);
                         temp.push(entry.temperature === -127 ? null : entry.temperature);
                     });
 
+                    // Update all chart data
                     charts.turbidity.data.labels = labels; charts.turbidity.data.datasets[0].data = turb; charts.turbidity.update();
+                    charts.tds.data.labels = labels; charts.tds.data.datasets[0].data = tds; charts.tds.update();
                     charts.temp.data.labels = labels; charts.temp.data.datasets[0].data = temp; charts.temp.update();
 
+                    // Update Live Text Values
                     const latest = data[keys[keys.length - 1]];
                     document.getElementById('live-turb').innerText = (latest.turbidity || 0) + " NTU";
+                    document.getElementById('live-tds').innerText = Math.round(latest.tds || 0) + " ppm";
                     document.getElementById('live-temp').innerText = (latest.temperature === -127 ? "Offline" : latest.temperature) + " °C";
 
+                    // Combined Safety Logic
                     const statusBox = document.getElementById('water-status');
-                    if (latest.temperature > 35 || latest.turbidity > 2) {
+                    const isUnsafe = (latest.temperature > 35 || latest.tds > 500 || latest.turbidity > 2);
+                    
+                    if (isUnsafe) {
                         statusBox.innerText = "Water Unsafe"; statusBox.className = "unsafe";
                     } else {
                         statusBox.innerText = "Water Safe"; statusBox.className = "safe";
@@ -206,13 +224,7 @@
                 document.getElementById('auth-section').style.display = 'none';
                 document.getElementById('dashboard-section').style.display = 'block';
                 document.getElementById('userEmailTag').innerText = user.email;
-                
-                if (user.email === MY_ADMIN_EMAIL) {
-                    document.getElementById('admin-controls').style.display = 'block';
-                } else {
-                    document.getElementById('admin-controls').style.display = 'none';
-                }
-                
+                document.getElementById('admin-controls').style.display = (user.email === MY_ADMIN_EMAIL) ? 'block' : 'none';
                 setupDashboard();
             } else {
                 document.getElementById('auth-section').style.display = 'block';
@@ -221,5 +233,5 @@
         });
     </script>
 </body>
-                    </html>
-                    
+    </html>
+    
